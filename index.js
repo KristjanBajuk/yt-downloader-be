@@ -30,11 +30,10 @@ io.use((socket, next) => {
     // return next(new Error('authentication error'));
 });
 
-const downloadVideo = (videoUrl, socket) => {
-    const video = ytdl(videoUrl, { filter: format => format.container === 'mp4', quality: "highest"});
+const downloadVideo = (videoUrl, options, socket) => {
+    const video = ytdl(videoUrl, options);
         let starttime;
         const output = path.resolve(__dirname, 'video.mp4');
-        console.log("DIRNAME: ", output);
         video.pipe(fs.createWriteStream(output));
 
         video.once('response', () => {
@@ -49,8 +48,30 @@ const downloadVideo = (videoUrl, socket) => {
 
         video.on('end', () => {
             socket.emit("downloaded", {done: true});
-           // res.sendFile(__dirname, 'video.mp4');
+            // fs.readFile("video.mp4", function (err, data) {
+            //     if (err) {
+            //         console.log(err)
+            //     }
+            //     console.log("ok");
+            //     socket.send(data,  {binary: true});
+            // });
+            
+            // res.sendFile(__dirname, 'video.mp4');
         });
+};
+
+
+
+const getInfo = async (url, socket) => {
+    const videoInfo = await ytdl.getInfo(url);
+    const formats = videoInfo.formats;
+
+    let audioOnlyFormats = ytdl.filterFormats(formats, 'audioonly');
+    let videoOnlyFormats = ytdl.filterFormats(formats, 'videoonly');
+    let videoAudioFormats = ytdl.filterFormats(formats, 'audioandvideo');
+
+    
+    socket.emit("videoInfo", {videoOnlyFormats, videoAudioFormats, audioOnlyFormats});
 };
 
 
@@ -68,47 +89,14 @@ io.on('connection', (socket) => {
     });
 
     socket.on('convert', (data) => {
-        downloadVideo(data.url, socket);
+        getInfo(data.url, socket);
+
+    });
+
+    socket.on('download', (data) => {
+        downloadVideo(data.url, data.options, socket);
     });
 });
 
-
-
-
-// app.get('/youtube-download', async (req, res) =>  {
-//     console.log("REQUEST: ", req);
-//     if (ytdl.validateURL(req.body.url)) {
-//         // const video = ytdl(req.body.url, { filter: format => format.container === 'mp4', quality: "highest"});
-//         // let starttime;
-//         // const output = path.resolve(__dirname, 'video.mp4');
-//         // console.log("DIRNAME: ", output);
-//         // video.pipe(fs.createWriteStream(output));
-//         //
-//         // video.once('response', () => {
-//         //     starttime = Date.now();
-//         // });
-//         // video.on('progress', (chunkLength, downloaded, total) => {
-//         //     const percent = downloaded / total;
-//         //     const downloadedMinutes = (Date.now() - starttime) / 1000 / 60;
-//         //     readline.cursorTo(process.stdout, 0);
-//         //     process.stdout.write(`${(percent * 100).toFixed(2)}% downloaded `);
-//         //     process.stdout.write(`(${(downloaded / 1024 / 1024).toFixed(2)}MB of ${(total / 1024 / 1024).toFixed(2)}MB)\n`);
-//         //     process.stdout.write(`running for: ${downloadedMinutes.toFixed(2)}minutes`);
-//         //     process.stdout.write(`, estimated time left: ${(downloadedMinutes / percent - downloadedMinutes).toFixed(2)}minutes `);
-//         //     readline.moveCursor(process.stdout, 0, -1);
-//         // });
-//         //
-//         // video.on('end', () => {
-//         //     process.stdout.write('\n\n');
-//         //     console.log("END");
-//         //     res.sendFile(__dirname, 'video.mp4');
-//         // });
-//         // //res.sendFile(__dirname, 'video.mp4');
-//         // res.status(200).send("VALID URL");
-//     } else {
-//         res.status(404).send("INVALID URL");
-//     }
-//    
-// });
 
 server.listen(port, () => console.log(`Example app listening on port ${port}!`));
